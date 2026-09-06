@@ -74,11 +74,13 @@ No terminal, dentro da pasta do projeto com o ambiente virtual ativo, execute:
 
 Bash
 python app.py
+
 Abra o seu navegador e acesse:
 
-Plaintext
 [http://127.0.0.1:5000](http://127.0.0.1:5000)
+
  Opções do Painel
+
 Caminho do Vídeo Original (.mp4): Diretório completo do arquivo de entrada.
 
 Pasta de Destino: Local onde os vídeos cortados e os arquivos de cache (transcricao.json) serão salvos.
