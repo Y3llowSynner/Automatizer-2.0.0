@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatizer AI 2.0</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="main-card">
+        <div class="badge">AUTOMAÇÃO INTELIGENTE DE VÍDEO 2.0</div>
+        <h1>Automatizer <span>AI</span></h1>
+        <p class="subtitle">Ajuste as opções avançadas para extrair e reformatar seus melhores vídeos.</p>
+
+        <form id="form-processar">
+            <div class="form-group">
+                <label for="video_path">Caminho do Vídeo Original (.mp4)</label>
+                <input type="text" id="video_path" name="video_path" placeholder="E:\video.mp4" required>
+            </div>
+
+            <div class="form-group">
+                <label for="output_dir">Pasta de Destino para os Cortes</label>
+                <input type="text" id="output_dir" name="output_dir" placeholder="E:\cortes" required>
+            </div>
+
+            <div class="form-group">
+                <label for="prompt_customizado">Prompt do Que Você Procura no Vídeo</label>
+                <input type="text" id="prompt_customizado" name="prompt_customizado" placeholder="Momentos de risadas, piadas, gritos, palavrões e reações engraçadas.">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modo_operacao">Modo de Operação</label>
+                    <select id="modo_operacao" name="modo_operacao">
+                        <option value="multiplos">Criar Múltiplos Cortes (Shorts/Reels)</option>
+                        <option value="completo">Vídeo Completo Formatado</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="formato_video">Formato de Saída</label>
+                    <select id="formato_video" name="formato_video">
+                        <option value="16:9">Horizontal Padrão (16:9 - YouTube)</option>
+                        <option value="9:16">Vertical Short (9:16 - TikTok/Reels)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="qtd_cortes">Quantidade de Cortes</label>
+                    <input type="number" id="qtd_cortes" name="qtd_cortes" value="10" min="1" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="tempo_min">Tempo Mínimo (s)</label>
+                    <input type="number" id="tempo_min" name="tempo_min" value="40" min="5">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="tempo_max">Tempo Máximo (s)</label>
+                <input type="number" id="tempo_max" name="tempo_max" value="60" min="10">
+            </div>
+
+            <!-- OPÇÕES AVANÇADAS EM QUADRO -->
+            <div class="options-box">
+                <div class="checkbox-grid">
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="picos_audio" name="picos_audio" checked>
+                        <span>Detecção de Clímax (Picos de Áudio/Librosa)</span>
+                    </label>
+
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="queimar_legendas" name="queimar_legendas" checked>
+                        <span>Queimar Legendas Automáticas no Vídeo</span>
+                    </label>
+
+                    <label class="checkbox-item span-2">
+                        <input type="checkbox" id="trigger_word_active" name="trigger_word_active">
+                        <span>Ativar Trigger Word (Cortar ao falar palavra-chave)</span>
+                    </label>
+                </div>
+
+                <div id="trigger-input-wrapper" class="form-group hidden" style="margin-top: 12px; margin-bottom: 0;">
+                    <label for="trigger_word">Palavras-Gatilho (separadas por vírgula):</label>
+                    <input type="text" id="trigger_word" name="trigger_word" placeholder="ex: Clipper, segredo, incrível" value="Clipper">
+                </div>
+            </div>
+
+            <!-- CARD DE PROGRESSO -->
+            <div id="container-progresso" class="progress-box hidden">
+                <div class="status-header">
+                    <span id="status-etapa">Transcrição de Áudio</span>
+                    <span id="status-porcentagem">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+                <div id="status-detalhes" class="status-detalhes">Executando Whisper na GPU...</div>
+            </div>
+
+            <button type="submit" id="btn-submit">Processando...</button>
+        </form>
+
+        <div id="container-resultados" class="hidden">
+            <h2 style="font-size: 1.1rem; margin-top: 20px; color: #a5b4fc;">Cortes Gerados:</h2>
+            <div id="lista-cortes" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <script>
+        const triggerCheckbox = document.getElementById('trigger_word_active');
+        const triggerInputWrapper = document.getElementById('trigger-input-wrapper');
+
+        triggerCheckbox.addEventListener('change', () => {
+            if (triggerCheckbox.checked) {
+                triggerInputWrapper.classList.remove('hidden');
+            } else {
+                triggerInputWrapper.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('form-processar').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('btn-submit');
+            const progressContainer = document.getElementById('container-progresso');
+            const resultadosContainer = document.getElementById('container-resultados');
+
+            submitBtn.disabled = true;
+            progressContainer.classList.remove('hidden');
+            resultadosContainer.classList.add('hidden');
+
+            const eventSource = new EventSource('/progresso');
+            eventSource.onmessage = (event) => {
+                const dados = JSON.parse(event.data);
+                document.getElementById('progress-bar').style.width = dados.porcentagem + '%';
+                document.getElementById('status-porcentagem').textContent = dados.porcentagem + '%';
+                document.getElementById('status-etapa').textContent = dados.etapa;
+                document.getElementById('status-detalhes').textContent = dados.detalhes;
+            };
+
+            const payload = {
+                video_path: document.getElementById('video_path').value,
+                output_dir: document.getElementById('output_dir').value,
+                prompt_customizado: document.getElementById('prompt_customizado').value,
+                modo_operacao: document.getElementById('modo_operacao').value,
+                formato_video: document.getElementById('formato_video').value,
+                qtd_cortes: document.getElementById('qtd_cortes').value,
+                tempo_min: document.getElementById('tempo_min').value,
+                tempo_max: document.getElementById('tempo_max').value,
+                picos_audio: document.getElementById('picos_audio').checked,
+                queimar_legendas: document.getElementById('queimar_legendas').checked,
+                trigger_word_active: triggerCheckbox.checked,
+                trigger_word: document.getElementById('trigger_word').value
+            };
+
+            try {
+                const res = await fetch('/processar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const resposta = await res.json();
+                eventSource.close();
+
+                if (resposta.sucesso) {
+                    const lista = document.getElementById('lista-cortes');
+                    lista.innerHTML = '';
+                    resposta.cortes.forEach(c => {
+                        const item = document.createElement('div');
+                        item.className = 'corte-item';
+                        item.innerHTML = `<strong>${c.titulo}</strong> (${c.duracao}s)<br><small>${c.path}</small>`;
+                        lista.appendChild(item);
+                    });
+                    resultadosContainer.classList.remove('hidden');
+                } else {
+                    alert('Erro: ' + resposta.erro);
+                }
+            } catch (err) {
+                eventSource.close();
+                alert('Erro de conexão com o servidor.');
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
