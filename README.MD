@@ -97,10 +97,10 @@ python app.py
 
 Abra o seu navegador e acesse:
 
-
-http://127.0.0.1:5000
+[http://127.0.0.1:5000](http://127.0.0.1:5000)
 
  Opções do Painel
+
 Caminho do Vídeo Original (.mp4): Diretório completo do arquivo de entrada.
 
 Pasta de Destino: Local onde os vídeos cortados e os arquivos de cache (transcricao.json) serão salvos.
@@ -117,6 +117,8 @@ Opções Avançadas:
 Detecção de Clímax (Picos de Áudio/Librosa): Captura trechos com base na energia sonora do vídeo.
 
 Queimar Legendas Automáticas: Gera legendas dinâmicas estilo redes sociais alinhadas palavra por palavra.
+
+Ativar Trigger Word: Processa o vídeo buscando palavras-chave personalizadas (ex: Clipper, segredo, urgente).
 
 Ativar Trigger Word: Processa o vídeo buscando palavras-chave personalizadas (ex: Clipper, segredo, urgente).
 
