@@ -4,6 +4,9 @@ import json
 import re
 import math
 import time
+import traceback
+import importlib
+from datetime import datetime, timedelta, timezone
 import ollama
 import numpy as np
 import librosa
@@ -46,8 +49,10 @@ def desenhar_legenda_dinamica(frame, t, lista_palavras, start_corte):
     texto_atual = ""
 
     for p in lista_palavras:
-        if p['start'] <= tempo_relativo <= p['end']:
-            texto_atual = p['word'].upper()
+        w_start = p.get('start', 0)
+        w_end = p.get('end', 0)
+        if w_start <= tempo_relativo <= w_end:
+            texto_atual = str(p.get('word', '')).upper()
             break
 
     if not texto_atual:
@@ -141,9 +146,10 @@ def buscar_trigger_words(palavras_sincronizadas, trigger_words, qtd_cortes, temp
     for p in palavras_sincronizadas:
         if len(cortes) >= qtd_cortes:
             break
-        palavra_limpa = re.sub(r'[^\w]', '', p['word'].lower())
+        palavra_bruta = str(p.get('word', ''))
+        palavra_limpa = re.sub(r'[^\w]', '', palavra_bruta.lower())
         if palavra_limpa in palavras_alvo:
-            st = max(0, p['start'] - 5) # 5 segundos antes do gatilho
+            st = max(0, float(p.get('start', 0)) - 5)
             et = min(duracao_total, st + tempo_medio)
             
             if not any(abs(st - c['inicio']) < tempo_min for c in cortes):
@@ -160,12 +166,19 @@ def index():
 @app.route('/processar', methods=['POST'])
 def processar():
     try:
-        dados = request.json
-        video_path = dados.get('video_path', '').strip('"').strip("'")
-        output_dir = dados.get('output_dir', '').strip('"').strip("'")
+        dados = request.json or {}
+        video_path = str(dados.get('video_path', '')).strip('"').strip("'")
+        output_dir = str(dados.get('output_dir', '')).strip('"').strip("'")
         prompt_customizado = dados.get('prompt_customizado', '')
         modo_operacao = dados.get('modo_operacao', 'multiplos')
         formato_video = dados.get('formato_video', '16:9')
+
+        modelo_titulo = dados.get('modelo_titulo', '{titulo} #shorts')
+        descricao_video = dados.get('descricao_video', 'Vídeo gerado automaticamente com Automatizer AI 2.0')
+        postar_youtube = dados.get('postar_youtube', False)
+        privacidade_yt = dados.get('privacidade_yt', 'public')
+        data_programada_str = dados.get('data_programada', '')
+        intervalo_dias = int(dados.get('intervalo_dias', 1))
 
         qtd_cortes = int(dados.get('qtd_cortes', 10))
         tempo_min = float(dados.get('tempo_min', 40))
@@ -178,12 +191,12 @@ def processar():
 
         if not os.path.exists(video_path):
             atualizar_status(0, "Erro", "Arquivo não encontrado")
-            return jsonify({'sucesso': False, 'erro': 'Arquivo de vídeo não encontrado.'}), 400
+            return jsonify({'sucesso': False, 'erro': f'Arquivo não encontrado: {video_path}'}), 400
 
         os.makedirs(output_dir, exist_ok=True)
 
         # 1. TRANSCRIÇÃO
-        atualizar_status(25, "Transcrição de Áudio", "Executando Whisper na GPU...")
+        atualizar_status(20, "Transcrição de Áudio", "Executando Whisper na GPU...")
         json_transcricao_path = os.path.join(output_dir, "transcricao.json")
         
         texto_completo = ""
@@ -218,15 +231,15 @@ def processar():
 
         # 2. DETECÇÃO
         if trigger_word_active and trigger_words:
-            atualizar_status(40, "Processando Gatilhos", "Buscando Trigger Words na transcrição...")
+            atualizar_status(35, "Processando Gatilhos", "Buscando Trigger Words na transcrição...")
             cortes_unicos.extend(buscar_trigger_words(palavras_sincronizadas, trigger_words, qtd_cortes, tempo_min, tempo_max, duracao_total))
 
         if picos_audio_ativo and len(cortes_unicos) < qtd_cortes:
-            atualizar_status(50, "Análise de Clímax", "Analisando picos de áudio com Librosa...")
+            atualizar_status(45, "Análise de Clímax", "Analisando picos de áudio com Librosa...")
             cortes_unicos.extend(detectar_picos_audio(video_path, qtd_cortes - len(cortes_unicos), tempo_min, tempo_max))
 
         if len(cortes_unicos) < qtd_cortes:
-            atualizar_status(60, "Análise do Conteúdo", "Identificando momentos virais com Ollama/Llama...")
+            atualizar_status(55, "Análise do Conteúdo", "Identificando momentos virais com Ollama/Llama...")
             prompt = (
                 f"Analise a transcrição abaixo e selecione até {qtd_cortes - len(cortes_unicos)} cortes virais.\n"
                 f"Format JSON estrito: [{{\"inicio\": 12.5, \"fim\": 52.0, \"titulo\": \"Momento\"}}]\n"
@@ -248,7 +261,6 @@ def processar():
             except Exception as e:
                 print(f"Erro IA: {e}")
 
-        # Fallback de segurança se precisar completar a quantidade solicitada
         if len(cortes_unicos) < qtd_cortes:
             intervalo = duracao_total / (qtd_cortes + 1)
             tempo_alvo = (tempo_min + tempo_max) / 2
@@ -257,13 +269,20 @@ def processar():
                 et = min(duracao_total, st + tempo_alvo)
                 cortes_unicos.append({'inicio': round(st, 2), 'fim': round(et, 2), 'titulo': f'Destaque_{i+1}'})
 
-        # 3. RENDERIZAÇÃO
+        # 3. RENDERIZAÇÃO E PUBLICAÇÃO
         clip_original = VideoFileClip(video_path)
         cortes_exportados = []
         total = min(len(cortes_unicos), qtd_cortes)
 
+        base_datetime = None
+        if privacidade_yt == 'scheduled' and data_programada_str:
+            try:
+                base_datetime = datetime.fromisoformat(data_programada_str)
+            except Exception:
+                base_datetime = datetime.now(timezone.utc) + timedelta(days=1)
+
         for i, corte in enumerate(cortes_unicos[:total]):
-            pct = 70 + int((i / total) * 28)
+            pct = 65 + int((i / total) * 25)
             atualizar_status(pct, "Renderizando Vídeo", f"Processando corte {i+1} de {total}...")
 
             start = max(0, float(corte['inicio']))
@@ -289,7 +308,54 @@ def processar():
 
             out_path = os.path.join(output_dir, f"{nome_arquivo}.mp4")
             subclip_proc.write_videofile(out_path, codec="libx264", audio_codec="aac", fps=30)
-            cortes_exportados.append({'titulo': nome_arquivo, 'path': out_path, 'duracao': round(end - start, 1)})
+
+            # Fechar o clip editado para soltar o lock de arquivo no Windows
+            subclip_proc.close()
+            del subclip_proc
+
+            titulo_final = modelo_titulo.replace('{titulo}', corte['titulo']).replace('{numero}', str(i + 1))
+            yt_status = "Não enviado"
+
+            if postar_youtube and os.path.exists(out_path):
+                atualizar_status(90 + int((i/total)*9), "Publicando no YouTube", f"Enviando vídeo {i+1} ao YouTube...")
+                
+                publish_at_iso = None
+                if privacidade_yt == 'scheduled' and base_datetime:
+                    current_date = base_datetime + timedelta(days=i * intervalo_dias)
+                    publish_at_iso = current_date.isoformat() + "Z"
+
+                try:
+                    import youtube_uploader
+                    importlib.reload(youtube_uploader)
+
+                    sucesso_yt, resposta_yt = youtube_uploader.upload_video_to_youtube(
+                        file_path=out_path,
+                        title=titulo_final,
+                        description=descricao_video,
+                        tags="shorts, corte, viral",
+                        privacy_status=privacidade_yt,
+                        publish_at=publish_at_iso
+                    )
+
+                    if sucesso_yt:
+                        extra_info = f" (Programado para {publish_at_iso})" if publish_at_iso else ""
+                        yt_status = f"Enviado! ID: {resposta_yt}{extra_info}"
+                    else:
+                        yt_status = f"Erro YouTube: {str(resposta_yt)}"
+
+                except Exception as err_critico:
+                    print("\n" + "="*50)
+                    print("ERRO DETALHADO NO ENVIADOR DO YOUTUBE:")
+                    traceback.print_exc()
+                    print("="*50 + "\n")
+                    yt_status = f"Erro YouTube: {type(err_critico).__name__} - {str(err_critico)}"
+
+            cortes_exportados.append({
+                'titulo': titulo_final,
+                'path': out_path,
+                'duracao': round(end - start, 1),
+                'yt_status': yt_status
+            })
 
         clip_original.close()
         atualizar_status(100, "Concluído", "Vídeos gerados com sucesso!")
@@ -301,6 +367,7 @@ def processar():
         })
 
     except Exception as e:
+        traceback.print_exc()
         atualizar_status(0, "Erro", str(e))
         return jsonify({'sucesso': False, 'erro': str(e)}), 500
 

@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Automatizer AI 2.0</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .hidden { display: none !important; }
+        .youtube-options { background: rgba(255, 255, 255, 0.03); padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
 </head>
 <body>
     <div class="main-card">
         <div class="badge">AUTOMAÇÃO INTELIGENTE DE VÍDEO 2.0</div>
         <h1>Automatizer <span>AI</span></h1>
-        <p class="subtitle">Ajuste as opções avançadas para extrair e reformatar seus melhores vídeos.</p>
+        <p class="subtitle">Ajuste as opções avançadas para extrair, reformatar e publicar seus vídeos.</p>
 
         <form id="form-processar">
             <div class="form-group">
@@ -28,6 +32,16 @@
                 <input type="text" id="prompt_customizado" name="prompt_customizado" placeholder="Momentos de risadas, piadas, gritos, palavrões e reações engraçadas.">
             </div>
 
+            <div class="form-group">
+                <label for="modelo_titulo">Modelo de Título do Vídeo</label>
+                <input type="text" id="modelo_titulo" name="modelo_titulo" value="{titulo} #shorts">
+            </div>
+
+            <div class="form-group">
+                <label for="descricao_video">Descrição do Vídeo no YouTube</label>
+                <textarea id="descricao_video" name="descricao_video" rows="3" style="width: 100%; background: #1e293b; color: #fff; border: 1px solid #334155; border-radius: 6px; padding: 8px;" placeholder="Insira a descrição padrão dos vídeos..."></textarea>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label for="modo_operacao">Modo de Operação</label>
@@ -40,8 +54,8 @@
                 <div class="form-group">
                     <label for="formato_video">Formato de Saída</label>
                     <select id="formato_video" name="formato_video">
-                        <option value="16:9">Horizontal Padrão (16:9 - YouTube)</option>
                         <option value="9:16">Vertical Short (9:16 - TikTok/Reels)</option>
+                        <option value="16:9">Horizontal Padrão (16:9 - YouTube)</option>
                     </select>
                 </div>
             </div>
@@ -49,58 +63,86 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="qtd_cortes">Quantidade de Cortes</label>
-                    <input type="number" id="qtd_cortes" name="qtd_cortes" value="10" min="1" max="100">
+                    <input type="number" id="qtd_cortes" name="qtd_cortes" value="1" min="1" max="100">
                 </div>
 
                 <div class="form-group">
                     <label for="tempo_min">Tempo Mínimo (s)</label>
-                    <input type="number" id="tempo_min" name="tempo_min" value="40" min="5">
+                    <input type="number" id="tempo_min" name="tempo_min" value="30" min="5">
+                </div>
+
+                <div class="form-group">
+                    <label for="tempo_max">Tempo Máximo (s)</label>
+                    <input type="number" id="tempo_max" name="tempo_max" value="40" min="10">
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="tempo_max">Tempo Máximo (s)</label>
-                <input type="number" id="tempo_max" name="tempo_max" value="60" min="10">
-            </div>
-
-            <!-- OPÇÕES AVANÇADAS EM QUADRO -->
             <div class="options-box">
                 <div class="checkbox-grid">
                     <label class="checkbox-item">
                         <input type="checkbox" id="picos_audio" name="picos_audio" checked>
-                        <span>Detecção de Clímax (Picos de Áudio/Librosa)</span>
+                        <span>Detecção de Clímax (Picos de Áudio)</span>
                     </label>
 
                     <label class="checkbox-item">
                         <input type="checkbox" id="queimar_legendas" name="queimar_legendas" checked>
-                        <span>Queimar Legendas Automáticas no Vídeo</span>
+                        <span>Queimar Legendas Automáticas</span>
                     </label>
 
                     <label class="checkbox-item span-2">
                         <input type="checkbox" id="trigger_word_active" name="trigger_word_active">
-                        <span>Ativar Trigger Word (Cortar ao falar palavra-chave)</span>
+                        <span>Ativar Trigger Word (Palavras-Chave)</span>
                     </label>
                 </div>
 
                 <div id="trigger-input-wrapper" class="form-group hidden" style="margin-top: 12px; margin-bottom: 0;">
                     <label for="trigger_word">Palavras-Gatilho (separadas por vírgula):</label>
-                    <input type="text" id="trigger_word" name="trigger_word" placeholder="ex: Clipper, segredo, incrível" value="Clipper">
+                    <input type="text" id="trigger_word" name="trigger_word" value="Clipper">
                 </div>
             </div>
 
-            <!-- CARD DE PROGRESSO -->
-            <div id="container-progresso" class="progress-box hidden">
+            <div class="youtube-box" style="margin-top: 15px;">
+                <label class="checkbox-item">
+                    <input type="checkbox" id="postar_youtube" name="postar_youtube" checked>
+                    <span><strong>Postar Automático no YouTube</strong></span>
+                </label>
+
+                <div id="youtube-options-wrapper" class="youtube-options">
+                    <div class="form-group">
+                        <label for="privacidade_yt">Visibilidade / Privacidade:</label>
+                        <select id="privacidade_yt" name="privacidade_yt">
+                            <option value="public">Público</option>
+                            <option value="private">Privado</option>
+                            <option value="unlisted">Não Listado</option>
+                            <option value="scheduled">Programado (Agendado)</option>
+                        </select>
+                    </div>
+
+                    <div id="agendamento-wrapper" class="form-row hidden">
+                        <div class="form-group">
+                            <label for="data_programada">Data/Hora Inicial de Publicação:</label>
+                            <input type="datetime-local" id="data_programada" name="data_programada">
+                        </div>
+                        <div class="form-group">
+                            <label for="intervalo_dias">Espaçamento Entre Cortes (Dias):</label>
+                            <input type="number" id="intervalo_dias" name="intervalo_dias" value="1" min="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="container-progresso" class="progress-box hidden" style="margin-top: 20px;">
                 <div class="status-header">
-                    <span id="status-etapa">Transcrição de Áudio</span>
+                    <span id="status-etapa">Iniciando...</span>
                     <span id="status-porcentagem">0%</span>
                 </div>
                 <div class="progress-bar-bg">
                     <div id="progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
                 </div>
-                <div id="status-detalhes" class="status-detalhes">Executando Whisper na GPU...</div>
+                <div id="status-detalhes" class="status-detalhes">Aguardando resposta do servidor...</div>
             </div>
 
-            <button type="submit" id="btn-submit">Processando...</button>
+            <button type="submit" id="btn-submit" style="margin-top: 20px;">Iniciar Processamento</button>
         </form>
 
         <div id="container-resultados" class="hidden">
@@ -110,18 +152,90 @@
     </div>
 
     <script>
+        const form = document.getElementById('form-processar');
         const triggerCheckbox = document.getElementById('trigger_word_active');
         const triggerInputWrapper = document.getElementById('trigger-input-wrapper');
 
-        triggerCheckbox.addEventListener('change', () => {
+        const postarYoutubeCb = document.getElementById('postar_youtube');
+        const ytOptionsWrapper = document.getElementById('youtube-options-wrapper');
+        const privacidadeSelect = document.getElementById('privacidade_yt');
+        const agendamentoWrapper = document.getElementById('agendamento-wrapper');
+
+        postarYoutubeCb.addEventListener('change', () => {
+            if (postarYoutubeCb.checked) {
+                ytOptionsWrapper.classList.remove('hidden');
+            } else {
+                ytOptionsWrapper.classList.add('hidden');
+            }
+        });
+
+        privacidadeSelect.addEventListener('change', () => {
+            if (privacidadeSelect.value === 'scheduled') {
+                agendamentoWrapper.classList.remove('hidden');
+            } else {
+                agendamentoWrapper.classList.add('hidden');
+            }
+        });
+
+        const toggleTriggerInput = () => {
             if (triggerCheckbox.checked) {
                 triggerInputWrapper.classList.remove('hidden');
             } else {
                 triggerInputWrapper.classList.add('hidden');
             }
+        };
+        triggerCheckbox.addEventListener('change', toggleTriggerInput);
+
+        // --- SALVAR E CARREGAR CONFIGURAÇÕES VIA LOCALSTORAGE ---
+        const INPUTS_PARA_SALVAR = [
+            'video_path', 'output_dir', 'prompt_customizado', 'modelo_titulo', 
+            'descricao_video', 'modo_operacao', 'formato_video', 'qtd_cortes', 
+            'tempo_min', 'tempo_max', 'picos_audio', 'queimar_legendas', 
+            'trigger_word_active', 'trigger_word', 'postar_youtube', 
+            'privacidade_yt', 'data_programada', 'intervalo_dias'
+        ];
+
+        function carregarConfiguracoes() {
+            INPUTS_PARA_SALVAR.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const valorSalvo = localStorage.getItem('automatizer_' + id);
+                
+                if (valorSalvo !== null) {
+                    if (el.type === 'checkbox') {
+                        el.checked = valorSalvo === 'true';
+                    } else {
+                        el.value = valorSalvo;
+                    }
+                }
+            });
+
+            toggleTriggerInput();
+            postarYoutubeCb.dispatchEvent(new Event('change'));
+            privacidadeSelect.dispatchEvent(new Event('change'));
+        }
+
+        function salvarConfiguracoes() {
+            INPUTS_PARA_SALVAR.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const valor = el.type === 'checkbox' ? el.checked : el.value;
+                localStorage.setItem('automatizer_' + id, valor);
+            });
+        }
+
+        INPUTS_PARA_SALVAR.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', salvarConfiguracoes);
+                el.addEventListener('input', salvarConfiguracoes);
+            }
         });
 
-        document.getElementById('form-processar').addEventListener('submit', async (e) => {
+        document.addEventListener('DOMContentLoaded', carregarConfiguracoes);
+
+        // --- SUBMIT DO FORMULÁRIO ---
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const submitBtn = document.getElementById('btn-submit');
@@ -129,6 +243,7 @@
             const resultadosContainer = document.getElementById('container-resultados');
 
             submitBtn.disabled = true;
+            submitBtn.textContent = "Processando...";
             progressContainer.classList.remove('hidden');
             resultadosContainer.classList.add('hidden');
 
@@ -145,6 +260,8 @@
                 video_path: document.getElementById('video_path').value,
                 output_dir: document.getElementById('output_dir').value,
                 prompt_customizado: document.getElementById('prompt_customizado').value,
+                modelo_titulo: document.getElementById('modelo_titulo').value,
+                descricao_video: document.getElementById('descricao_video').value,
                 modo_operacao: document.getElementById('modo_operacao').value,
                 formato_video: document.getElementById('formato_video').value,
                 qtd_cortes: document.getElementById('qtd_cortes').value,
@@ -153,7 +270,11 @@
                 picos_audio: document.getElementById('picos_audio').checked,
                 queimar_legendas: document.getElementById('queimar_legendas').checked,
                 trigger_word_active: triggerCheckbox.checked,
-                trigger_word: document.getElementById('trigger_word').value
+                trigger_word: document.getElementById('trigger_word').value,
+                postar_youtube: postarYoutubeCb.checked,
+                privacidade_yt: privacidadeSelect.value,
+                data_programada: document.getElementById('data_programada').value,
+                intervalo_dias: document.getElementById('intervalo_dias').value
             };
 
             try {
@@ -172,18 +293,20 @@
                     resposta.cortes.forEach(c => {
                         const item = document.createElement('div');
                         item.className = 'corte-item';
-                        item.innerHTML = `<strong>${c.titulo}</strong> (${c.duracao}s)<br><small>${c.path}</small>`;
+                        const statusTexto = c.yt_status ? c.yt_status : 'Erro YouTube: Nenhuma resposta retornada do servidor.';
+                        item.innerHTML = `<strong>${c.titulo}</strong> (${c.duracao}s)<br><small>${c.path}</small><br><small style="color: #60a5fa;">${statusTexto}</small>`;
                         lista.appendChild(item);
                     });
                     resultadosContainer.classList.remove('hidden');
                 } else {
-                    alert('Erro: ' + resposta.erro);
+                    alert('Erro: ' + (resposta.erro || 'Falha no processamento'));
                 }
             } catch (err) {
                 eventSource.close();
                 alert('Erro de conexão com o servidor.');
             } finally {
                 submitBtn.disabled = false;
+                submitBtn.textContent = "Iniciar Processamento";
             }
         });
     </script>

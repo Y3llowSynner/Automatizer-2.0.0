@@ -112,14 +112,13 @@ input:focus, select:focus {
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
 }
 
-/* QUADRO DE OPÇÕES AJUSTADO */
-.options-box {
+.options-box, .youtube-box {
     background-color: #0f172a;
     border: 1px solid #1e293b;
     border-radius: 10px;
     padding: 16px;
     margin-top: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .checkbox-grid {
@@ -160,6 +159,7 @@ button[type="submit"] {
     font-weight: 700;
     cursor: pointer;
     transition: opacity 0.2s;
+    margin-top: 8px;
 }
 
 button[type="submit"]:hover {
